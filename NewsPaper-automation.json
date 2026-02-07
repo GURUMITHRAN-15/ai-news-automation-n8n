@@ -1,0 +1,368 @@
+{
+  "name": "NewsPaper-at Gmail",
+  "nodes": [
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        224,
+        224
+      ],
+      "id": "b86da238-bea0-4752-afa5-3f8c420a06ec",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=HEADLINES:\n{{ $json.items.map((item, i) => `${i + 1}. ${item.headline}`).join('\\n') }}\n\nReturn ONLY a valid JSON array of summaries in the exact same order:\n[\"English summary 1\", \"English summary 2\", ...]\n\nRULES:\n- Each summary must be 2–3 sentences IN ENGLISH\n- Output must be a valid JSON array of strings only\n- No markdown, no code blocks, no explanations\n- Exactly {{ $json.items.length }} summaries required\n- ALL summaries must be in English\n",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an English news summarizer.\n\nSTRICT RULES:\n1. Return ONLY a JSON array of summary strings\n2. Each summary must be 2–3 sentences IN ENGLISH\n3. Maintain the EXACT same order as the input headlines\n4. Do NOT include headlines or URLs in your output\n5. Do NOT add any explanation, markdown, or extra text\n6. Use clear, professional news-style English\nYou will receive headlines, and you must return ONLY English summaries in a JSON array.\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        800,
+        496
+      ],
+      "id": "06279c57-c8f6-4cf8-9221-dcc6000b850a",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════════\n// LATEST TRENDING NEWS FILTER v2.0\n// Filters last 24 hours, removes duplicates, sorts by recency\n// ═══════════════════════════════════════════════════════════════════════════════\n\nconst allItems = $input.all();\nconst now = new Date();\nconst last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\n// Track seen headlines to remove duplicates\nconst seenHeadlines = new Set();\n\nconst processedItems = allItems\n  .filter(i => i.json.url || i.json.link)\n  .map(i => {\n    // Parse publication date from various possible fields\n    let pubDate = null;\n    const dateFields = ['pubDate', 'isoDate', 'date', 'published', 'updated'];\n    \n    for (const field of dateFields) {\n      if (i.json[field]) {\n        pubDate = new Date(i.json[field]);\n        if (!isNaN(pubDate.getTime())) break;\n      }\n    }\n    \n    return {\n      ...i,\n      parsedDate: pubDate,\n      headline: i.json.title || i.json.headline || ''\n    };\n  })\n  // Remove duplicates by headline\n  .filter(i => {\n    const normalizedHeadline = i.headline.toLowerCase().trim();\n    if (seenHeadlines.has(normalizedHeadline)) {\n      return false;\n    }\n    seenHeadlines.add(normalizedHeadline);\n    return true;\n  })\n  // Filter: Only last 24 hours\n  .filter(i => {\n    if (!i.parsedDate || isNaN(i.parsedDate.getTime())) {\n      return true; // Keep if no valid date\n    }\n    return i.parsedDate >= last24Hours;\n  })\n  // Sort: Newest first\n  .sort((a, b) => {\n    const dateA = a.parsedDate ? a.parsedDate.getTime() : 0;\n    const dateB = b.parsedDate ? b.parsedDate.getTime() : 0;\n    return dateB - dateA;\n  })\n  // Take top 10\n  .slice(0, 10)\n  // Clean up\n  .map(i => {\n    delete i.parsedDate;\n    delete i.headline;\n    return i;\n  });\n\n// If less than 10 items after filtering, log warning\nif (processedItems.length < 10) {\n  console.log(`Warning: Only ${processedItems.length} recent news items found`);\n}\n\nreturn processedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        272
+      ],
+      "id": "9479e960-f297-43e3-ac9b-ecc49938bcfb",
+      "name": "Top-10-News-Input1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════════\n// ENGLISH NEWSLETTER GENERATOR v4.0 - ENHANCED\n// Features: Indian Date, AI Logo, Better Spacing, Dynamic Images\n// ═══════════════════════════════════════════════════════════════════════════════\n\n// English month names\nconst MONTHS = [\n    'January', 'February', 'March', 'April', 'May', 'June',\n    'July', 'August', 'September', 'October', 'November', 'December'\n];\n\nconst DAYS = [\n    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'\n];\n\nfunction getEnglishDate() {\n    const now = new Date();\n    const day = now.getDate();\n    const month = MONTHS[now.getMonth()];\n    const year = now.getFullYear();\n    const dayName = DAYS[now.getDay()];\n    \n    return {\n        full: `${dayName}, ${day} ${month} ${year}`,\n        short: `${day} ${month} ${year}`,\n        dayName,\n        day,\n        month,\n        year\n    };\n}\n\nfunction getIndianDate() {\n    return new Date().toLocaleDateString('en-IN', {\n        weekday: 'long',\n        day: 'numeric',\n        month: 'long',\n        year: 'numeric'\n    });\n}\n\nfunction truncateText(text, maxLength) {\n    if (!text || text.length <= maxLength) return text || '';\n    return text.substring(0, maxLength).trim() + '...';\n}\n\nfunction getCurrentSeason() {\n    const month = new Date().getMonth();\n    if (month >= 2 && month <= 4) return 'SPRING';\n    if (month >= 5 && month <= 7) return 'SUMMER';\n    if (month >= 8 && month <= 10) return 'AUTUMN';\n    return 'WINTER';\n}\n\nfunction safeUrl(url) {\n    if (!url || typeof url !== 'string') return null;\n    if (!url.startsWith('http://') && !url.startsWith('https://')) return null;\n    return url;\n}\n\nfunction getNewsImage(_, index) {\n    const images = [\n        \n        'https://picsum.photos/seed/news2/500/280',\n        'https://picsum.photos/seed/news3/500/280',\n        'https://picsum.photos/seed/world/500/280',\n        'https://picsum.photos/seed/india/500/280'\n    ];\n    return images[index % images.length];\n}\n\nfunction generateMagazineNewsletter(input) {\n    const item = input[0];\n    const items = item.json?.items || [];\n\n    if (items.length === 0) {\n        return [{ json: { html: `<h1>Newsletter</h1><p>No news items available.</p>` } }];\n    }\n\n    const date = getEnglishDate();\n    const indianDate = getIndianDate();\n    const season = getCurrentSeason();\n\n    const leftStory1 = items[0] || {};\n    const leftStory2 = items[1] || {};\n    const mainStory = items[2] || items[0] || {};\n    const rightStories = items.slice(3, 9);\n    const bottomStories = items.slice(9, 13);\n\n    const year = new Date().getFullYear();\n\n    const html = `\n<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title>English News Daily - ${date.short}</title>\n<style>\n@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');\n</style>\n</head>\n\n<body style=\"margin:0;padding:0;background:#f0f0f0;font-family:'Inter', Arial, sans-serif;\">\n<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n<tr><td align=\"center\">\n\n<table width=\"980\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#ffffff;\">\n\n<!-- HEADER -->\n<tr>\n<td style=\"background:linear-gradient(135deg,#1a1a2e,#16213e);padding:15px 30px;\">\n<table width=\"100%\">\n<tr>\n<td width=\"70\">\n<div style=\"width:55px;height:55px;background:linear-gradient(135deg,#a30000,#ff6b6b);border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #ffd700;\">\n<span style=\"font-size:26px;color:#fff;font-weight:bold;\">N</span>\n</div>\n</td>\n<td>\n<div style=\"font-size:30px;font-weight:bold;color:#fff;\">ENGLISH NEWS DAILY</div>\n<div style=\"font-size:12px;color:#ffd700;letter-spacing:2px;\">GLOBAL NEWS DIGEST</div>\n</td>\n<td align=\"right\">\n<div style=\"color:#fff;font-size:13px;\">${date.full}</div>\n<div style=\"color:#aaa;font-size:11px;\">${indianDate}</div>\n<div style=\"color:#ffd700;font-size:10px;letter-spacing:2px;\">${season} EDITION</div>\n</td>\n</tr>\n</table>\n</td>\n</tr>\n\n<!-- NAV -->\n<tr>\n<td style=\"background:#a30000;padding:10px 30px;color:#fff;font-size:11px;letter-spacing:2px;\">\nHOME &nbsp; WORLD &nbsp; INDIA &nbsp; BUSINESS &nbsp; TECH &nbsp; SPORTS &nbsp; ENTERTAINMENT\n</td>\n</tr>\n\n<!-- CONTENT -->\n<tr>\n<td>\n<table width=\"100%\">\n<tr>\n\n<!-- LEFT -->\n<td width=\"28%\" valign=\"top\" style=\"padding:20px;border-right:1px solid #ddd;\">\n<h3>${leftStory1.headline || 'Headline'}</h3>\n<p style=\"font-size:13px;color:#444;\">${truncateText(leftStory1.summary,220)}</p>\n<hr>\n<h3>${leftStory2.headline || 'Headline'}</h3>\n<p style=\"font-size:13px;color:#444;\">${truncateText(leftStory2.summary,220)}</p>\n</td>\n\n<!-- CENTER -->\n<td width=\"44%\" valign=\"top\" style=\"padding:20px;\">\n<img src=\"${getNewsImage('main',0)}\" style=\"width:100%;border-radius:8px;\">\n<h2>${mainStory.headline || 'Main News'}</h2>\n<p style=\"font-size:15px;color:#333;\">${mainStory.summary || ''}</p>\n${safeUrl(mainStory.url) ? `<a href=\"${mainStory.url}\" style=\"background:#a30000;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;\">Read Full Story →</a>` : ''}\n</td>\n\n<!-- RIGHT -->\n<td width=\"28%\" valign=\"top\" style=\"background:#fff5f5;padding:20px;\">\n<h3 style=\"color:#a30000;\">🔥 Trending Now</h3>\n${rightStories.map(s => `\n<p style=\"font-size:13px;\"><b>${truncateText(s.headline,55)}</b><br>${truncateText(s.summary,70)}</p>\n`).join('')}\n</td>\n\n</tr>\n</table>\n</td>\n</tr>\n\n<!-- FOOTER -->\n<tr>\n<td style=\"background:#16213e;color:#aaa;padding:25px;text-align:center;font-size:11px;\">\n© ${year} English News Daily. All rights reserved.\n</td>\n</tr>\n\n</table>\n</td></tr>\n</table>\n</body>\n</html>\n`;\n\n    return [{ json: { html } }];\n}\n\nreturn generateMagazineNewsletter($input.all());\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        272
+      ],
+      "id": "f93ed535-576b-48f5-ba01-719683f3b05c",
+      "name": "HTML Code1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      items: $input.all().map(i => {\n        // Get URL - RSS feeds use 'link', not 'url'\n        const url = i.json.url || i.json.link || i.json.href || null;\n        \n        // Get headline\n        const headline = i.json.title || i.json.headline || 'Untitled';\n        \n        // Extract source from title if not available\n        let source = i.json.source || '';\n        if (!source && headline.includes(' - ')) {\n          const parts = headline.split(' - ');\n          source = parts[parts.length - 1].trim();\n        }\n        \n        // Get summary from available fields\n        const summary = i.json.summary || i.json.description || i.json.contentSnippet || '';\n        \n        return {\n          headline: headline,\n          url: url,\n          source: source,\n          summary: summary\n        };\n      })\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        272
+      ],
+      "id": "9942bcf0-b7d3-4fcf-8e9d-852e249596f6",
+      "name": "Normalize Input1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse summaries from LLM output\nconst summaries = JSON.parse($json.text);\n\n// Get original data from 'Normalize Input' node (correct node name!)\nconst originalItems = $('Normalize Input1').first().json.items;\n\n// Merge: Original headlines + URLs + New summaries\nconst result = originalItems.map((item, index) => ({\n  headline: item.headline,\n  url: item.url,\n  source: item.source,\n  summary: summaries[index] || \"Summary unavailable\"\n}));\n\nreturn [{ json: { items: result } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        272
+      ],
+      "id": "8685b798-2b6d-4aa6-813c-5f299014bf68",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "sendTo": "=vgurumithran34@gmail.com",
+        "subject": "Daily English News",
+        "message": "={{ $('HTML Code1').item.json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1504,
+        272
+      ],
+      "id": "b2d4a13f-631d-457a-8b5d-0a0388755726",
+      "name": "Send_Email1",
+      "webhookId": "3fea4506-e30f-4444-b40e-7c8783ff15a8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gsCs0jyDSvEy9Y1J",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        816,
+        688
+      ],
+      "id": "1f19cf9e-775d-44c3-9c00-edf53e7ec21a",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "li3nYTjLLaNYubLe",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -480,
+        272
+      ],
+      "id": "df25de10-5a49-4af7-88aa-bb591dbad6ed",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://www.aljazeera.com/xml/rss/all.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -256,
+        16
+      ],
+      "id": "d4fb0af0-36ee-4235-ab51-eedb6c7e54f6",
+      "name": "RSS Read"
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=geopolitics+global&hl=en&gl=US&ceid=US:en",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -256,
+        176
+      ],
+      "id": "aa392735-79c3-4ff1-bded-2393d0436042",
+      "name": "Geopolitics"
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=silver+price+global+economy&hl=en&gl=US&ceid=US:en",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -256,
+        336
+      ],
+      "id": "94579915-32f6-4133-952e-9caf8c89b6b7",
+      "name": "Economy news"
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=global+sports+news&hl=en&gl=US&ceid=US:en",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -256,
+        512
+      ],
+      "id": "69d0aea6-f106-4732-9042-1872c3a02163",
+      "name": "Sports"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Top-10-News-Input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Top-10-News-Input1": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Code1": {
+      "main": [
+        [
+          {
+            "node": "Send_Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTML Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sports",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Geopolitics",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Economy news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geopolitics": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Economy news": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Sports": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "afaa48b2-4edc-4e25-a8b8-3ac3d6947e20",
+  "meta": {
+    "instanceId": "a78bd07a0c368dc669082f7b7e9a27cb20d4d00b1f7f6d11430d45b39f23c1d7"
+  },
+  "id": "rGjjJY69oxwVr4eHLu2sy",
+  "tags": []
+}
