@@ -55,6 +55,15 @@ Email Sender (Gmail)
 - Structured newsletter layout
 - Mobile-friendly HTML email
 
+  
+## 📸 Screenshots
+
+### n8n Workflow
+![n8n Workflow](screenshots/worflowpng.png)
+
+### Newsletter Preview
+![Newsletter Preview](screenshots/output.png)
+
 ---
 
 ## ⚙️ How to Run Locally
