@@ -4,15 +4,7 @@
 
 ## 📸 Screenshots
 
-### n8n Workflow
-![n8n Workflow](screenshots/worflowpng.png)
-
-### Newsletter Preview
-![Newsletter Preview](screenshots/output.png)
-
-### code
-![Code](screenshots/screenshot3.png)
-
-
+  - are access in Screenshots Folder
+    
 
 These screenshots help users quickly understand how the automation works and what the final output looks like.
