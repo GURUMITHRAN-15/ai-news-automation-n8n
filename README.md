@@ -107,8 +107,8 @@ Email Sender (Gmail)
 
 **Gurumithran**
 
-- LinkedIn: *(add link)*
-- GitHub: *(add link)*
+- LinkedIn: *(www.linkedin.com/in/gurumithran-v-b30b99357)*
+- GitHub: *(https://github.com/GURUMITHRAN-15)*
 
 ---
 
